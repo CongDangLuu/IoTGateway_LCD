@@ -1,0 +1,13 @@
+IOTgatwae
+congdang143
+
+
+Tên databases:		id18138828_gateway_database
+Người dùng Database:	id18138828_iotgateway
+Mật khẩu: 		Q]sac8*&Kq)3#M{c
+
+đăng phập php:
+Người dùng Database:	id18138828_iotgateway
+Mật khẩu: 		Q]sac8*&Kq)3#M{c
+
+https://iotgatwae.000webhostapp.com/
