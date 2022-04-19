@@ -1,14 +1,14 @@
 <?php
  
 $servername = "localhost";
-$dbname = "id18138828_gateway_database"; // Database name
-$username = "id18138828_iotgateway";// Database user
-$password = "Q]sac8*&Kq)3#M{c";//Database user password
+$dbname = "id18702154_iotgateway_database"; // Database name
+$username = "id18702154_iotgateway";// Database user
+$password = "LuanVanTotNghiep@@2022";//Database user password
  
 
 $api_key_value = "iotgateway2021";
  
-$api_key= $ten = $Stt = $nhietdo = $doam = $anhsang = $table ="";
+$api_key= $Name = $Stt = $ND = $DA = $AS = $Table ="";
  
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 $timest = date('Y-m-d H:i:s'); 
@@ -18,12 +18,12 @@ var_dump($_POST);
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $api_key = test_input($_POST["api_key"]);
     if($api_key == $api_key_value) {
-        $table = test_input($_POST["table"]);
-        $ten = test_input($_POST["ten"]);
+        $Table = test_input($_POST["Table"]);
+        $Name = test_input($_POST["Name"]);
         $Stt = test_input($_POST["Stt"]);
-        $nhietdo = test_input($_POST["nhietdo"]);
-        $doam = test_input($_POST["doam"]);
-        $anhsang = test_input($_POST["anhsang"]);
+        $ND = test_input($_POST["Temp"]);
+        $DA = test_input($_POST["Humi"]);
+        $AS = test_input($_POST["Light"]);
 
         
         
@@ -33,11 +33,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($conn->connect_error) {
             die("Connection failed: " . $conn->connect_error);
         } 
-        $val = " (ten, Stt, nhietdo, doam, anhsang, timest)
-        VALUES ('$ten', '$Stt', '$nhietdo', '$doam', '$anhsang', '$timest')";
+        $val = " (NameDV, Status_dv, Temperature, Humidity, Light, Timestamp)
+        VALUES ('$Name', '$Stt', '$ND', '$DA', '$AS', '$timest')";
         
         $sql = "INSERT INTO ";
-        $sql .= $table;
+        $sql .= $Table;
         $sql .= $val;
         
         

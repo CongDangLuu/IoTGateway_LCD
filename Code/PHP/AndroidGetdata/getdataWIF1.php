@@ -1,5 +1,5 @@
 <?php   
-$connect = mysqli_connect("localhost", "id18138828_iotgateway", "Q]sac8*&Kq)3#M{c", "id18138828_gateway_database"); 
+$connect = mysqli_connect("localhost", "id18702154_iotgateway", "LuanVanTotNghiep@@2022", "id18702154_iotgateway_database"); 
 
 $sql = "SELECT * FROM WIFI1";
 
@@ -9,12 +9,12 @@ $json_array = array();
 
 
 while($row = mysqli_fetch_array($result)){
-    $ten=$row['ten'];
-    $nhiet_do = $row['nhietdo'];
-    $do_am = $row['doam'];
-    $anh_sang = $row['anhsang'];
-    $trang_thai =$row['Stt'];
-    $thoi_gian_doc = $row['timest'];
+    $ten=$row['NameDV'];
+    $nhiet_do = $row['Temperature'];
+    $do_am = $row['Humidity'];
+    $anh_sang = $row['Light'];
+    $trang_thai =$row['Status_dv'];
+    $thoi_gian_doc = $row['Timestamp'];
     
 	$json_array[] = array(
 	    'Name'=>$ten,

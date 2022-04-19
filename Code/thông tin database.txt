@@ -1,0 +1,11 @@
+Gmail: iotgateway.lvtn@gmail.com
+pass:congdang143
+
+
+tên website: 
+	IoTgateway
+	congdang143
+Database:
+	tên database: 	id18702154_iotgateway_database
+	tên người dùng:	id18702154_iotgateway
+	pass:			LuanVanTotNghiep@@2022
