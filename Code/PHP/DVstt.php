@@ -10,9 +10,18 @@
 	
 	$data['WIFI1'] = text_input($_POST["WIFI1"]);
 	$data['WIFI2'] = text_input($_POST["WIFI2"]);
+   $data['WIFI3'] = text_input($_POST["WIFI2"]);
+   $data['WIFI4'] = text_input($_POST["WIFI2"]);
+   $data['WIFI5'] = text_input($_POST["WIFI2"]);
+
 	$data['BLU1'] = text_input($_POST["BLU1"]);
 	$data['BLU2'] = text_input($_POST["BLU2"]);
-	$data['SUB'] = text_input($_POST["SUB"]);
+   
+	$data['SUB1'] = text_input($_POST["SUB1"]);
+   $data['SUB2'] = text_input($_POST["SUB2"]);
+   $data['SUB3'] = text_input($_POST["SUB3"]);
+   $data['SUB4'] = text_input($_POST["SUB4"]);
+   $data['SUB5'] = text_input($_POST["SUB5"]);
    
 	$newJsonString = json_encode($data);
 	file_put_contents("stt/DVstt.json", $newJsonString);

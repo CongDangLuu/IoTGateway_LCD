@@ -1,8 +1,8 @@
 <?php   
 $connect = mysqli_connect("localhost", "u883110114_iotgateway", "LuanVanTotNghiep@@2022", "u883110114_iotgateway_db"); 
+ 
 
-
-$sql = "SELECT * FROM WIFI2";
+$sql = "SELECT * FROM SUB2";
 
 $result = mysqli_query($connect, $sql);
 

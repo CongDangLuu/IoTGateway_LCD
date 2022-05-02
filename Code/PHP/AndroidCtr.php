@@ -1,6 +1,6 @@
    <?php
   
-   $jsonString = file_get_contents("test/test.json");
+   $jsonString = file_get_contents("control/contron.json");
    $data = json_decode($jsonString, true);
    
 
@@ -8,11 +8,12 @@
     
 	if ($_SERVER["REQUEST_METHOD"] == "POST") {
 	
-	$data['Pro'] = test_input($_POST["Pro"]);
-	$data['Stt'] = test_input($_POST["Stt"]);
-   
-	$newJsonString = json_encode($data);
-	file_put_contents("test/test.json", $newJsonString);
+      $data['Pro'] = test_input($_POST["Pro"]);
+      $data['Stt'] = test_input($_POST["Stt"]);
+      $data['MCU'] = test_input($_POST["MCU"]);
+      
+      $newJsonString = json_encode($data);
+      file_put_contents("control/control.json", $newJsonString);
 	}
 
 	

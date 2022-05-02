@@ -1,8 +1,8 @@
 <?php
  
 $servername = "localhost";
-$dbname = "id18702154_iotgateway_database"; // Database name
-$username = "id18702154_iotgateway";// Database user
+$dbname = "u883110114_iotgateway_db"; // Database name
+$username = "u883110114_iotgateway";// Database user
 $password = "LuanVanTotNghiep@@2022";//Database user password
  
 
@@ -24,8 +24,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $ND = test_input($_POST["Temp"]);
         $DA = test_input($_POST["Humi"]);
         $AS = test_input($_POST["Light"]);
-
-        
         
         // Create connection
         $conn = new mysqli($servername, $username, $password, $dbname);
@@ -39,8 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sql = "INSERT INTO ";
         $sql .= $Table;
         $sql .= $val;
-        
-        
+         
         if ($conn->query($sql) === TRUE) {
             echo "New record created successfully";
         } 
