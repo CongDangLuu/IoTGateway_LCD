@@ -1,5 +1,9 @@
 <?php   
-$connect = mysqli_connect("localhost", "u883110114_iotgateway", "LuanVanTotNghiep@@2022", "u883110114_iotgateway_db"); 
+$servername = "localhost";
+$dbname = "highalln_iotgateway_db"; // Database name
+$username = "highalln_gateway";// Database user
+$password = "LuanVanTotNghiep@@2022";//Database user password
+$connect = mysqli_connect($servername, $username, $password, $dbname); 
 
 
 $sql = "SELECT * FROM WIFI1";

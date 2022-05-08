@@ -80,8 +80,8 @@ void mesh_setup(){
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
-  userScheduler.addTask( taskSendMessage );
-  taskSendMessage.enable();
+  // userScheduler.addTask( taskSendMessage );
+  // taskSendMessage.enable();
 }
 
 void DHT11_data(){

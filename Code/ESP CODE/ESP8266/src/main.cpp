@@ -368,7 +368,7 @@ void CtrCMD(String payload)
         if(DVCtr == gate)
         {
           DynamicJsonDocument doc(1024);
-          doc["request"] = "control";
+          doc["cmd"] = "control";
           doc["Ctr"] = DVStt;
           String msg;
           serializeJson(doc, msg);
