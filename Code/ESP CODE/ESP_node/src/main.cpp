@@ -1,5 +1,5 @@
 #include <Arduino.h>
-// Node 1
+
 #include "painlessMesh.h"
 
 #include <SPI.h>
@@ -37,6 +37,8 @@ void DHT11_setup();
 void DHT11_data();
 //------------------DHT11--------------------
 
+
+
 //******************CC1101*******************
 #define Led_Sub D4
 
@@ -49,6 +51,7 @@ void CC1101_Node_RX();
 void CC1101_Node_TX();
 
 //******************CC1101*******************
+
 
 //++++++++++++++++++ESP8266++++++++++++++++++
 #define Led_Wifi 2
@@ -79,22 +82,24 @@ void nodeTimeAdjustedCallback(int32_t offset) {
 }
 
 //++++++++++++++++++ESP8266++++++++++++++++++
+
 void setup() {
   Serial.begin(115200);
   
-  mesh_setup();
   DHT11_setup();
+  mesh_setup();
 
   SPI.begin(); // mandatory. CC1101_RF does not start SPI automatically
   radio.begin(433.2e6); // Freq=433.2Mhz. Do not forget the "e6"
   radio.setRXstate(); // Set the current state to RX : listening for RF packets
   set_infor();
-  
 }
-void loop() { 
-  mesh.update();
-  CC1101_Node_RX();
-  
+
+void loop() {
+  userScheduler.execute();  
+   mesh.update();
+   CC1101_Node_RX();
+
 }
 
 void set_infor(){ 
@@ -116,34 +121,42 @@ void set_infor(){
   pinMode(Led_Wifi, OUTPUT);
   digitalWrite(Led_Sub,HIGH);
   digitalWrite(Led_Wifi,HIGH);
+
+
 }
 
+//------------------DHT11--------------------
 void DHT11_setup(){
   dht.begin();
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
-  // Print humidity sensor details.
+  
   dht.humidity().getSensor(&sensor);
+  
+ 
 }
+
 void DHT11_data(){
-  // Get temperature event and print its value.
+  
   sensors_event_t event;
   dht.temperature().getEvent(&event);
   if (isnan(event.temperature)) {
-    Serial.println(F("Error reading temperature!"));
+    //Serial.println(F("Error reading temperature!"));
   }
   else {
     Temp = event.temperature;
   }
-  // Get humidity event and print its value.
+  
   dht.humidity().getEvent(&event);
   if (isnan(event.relative_humidity)) {
-    Serial.println(F("Error reading humidity!"));
+    //Serial.println(F("Error reading humidity!"));
   }
   else {
     Humi = event.relative_humidity;
   }
 }
+//------------------DHT11--------------------
+
 
 
 
@@ -159,6 +172,7 @@ void CC1101_Node_RX(){
         }
         
         //request,id
+        //respond,id,ok(null)
         //control,id,0
        
         String cmd = data_SubRx.substring(0,data_SubRx.indexOf(','));
@@ -202,6 +216,10 @@ void CC1101_Node_TX(){
 //******************CC1101*******************
 
 
+
+
+//++++++++++++++++++ESP8266++++++++++++++++++
+
 void mesh_setup(){
   mesh.setDebugMsgTypes( ERROR | STARTUP );  
   mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
@@ -209,9 +227,8 @@ void mesh_setup(){
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
   mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
-  // userScheduler.addTask( taskSendMessage );
-  // taskSendMessage.enable();
 }
+
 void sendMessage()
 {
   DHT11_data();
@@ -233,6 +250,7 @@ void sendMessage()
     mesh.sendBroadcast( msg );
     Serial.println("Message from DHT node:");
     Serial.println(msg);
+
 }
 void receivedCallback( uint32_t from, String &msg ) {
   
@@ -252,19 +270,13 @@ void receivedCallback( uint32_t from, String &msg ) {
     if(cmd == "request"){
       sendMessage();
     }
-    else{
-      Stt_WifiLed = int(doc["Stt"]); 
-      
+    else if (cmd == "control"){
+       Stt_WifiLed = int(doc["Stt"]); 
       digitalWrite(Led_Wifi, !Stt_WifiLed);
+      sendMessage();
     } 
   }
-  
 }
-
-
-
-
-
-
-
+  
+//++++++++++++++++++ESP8266++++++++++++++++++
 

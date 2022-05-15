@@ -33,11 +33,12 @@ const char* pathGetCtr = "http://luanvanlogistic.highallnight.com/AppIoTgateway/
 
 //đọc dữ liệu uart
 
-SoftwareSerial Serial_STM(D5,D6);//D5 = RX -- D6 = TX
+SoftwareSerial Serial_STM(D5,D6);//D2 = RX -- D3 = TX
 
 /*-----------mesh network----------------*/
 Scheduler userScheduler; 
 painlessMesh mesh;
+
 
 typedef struct{
   uint32_t id[5];
@@ -50,10 +51,10 @@ Infor Wifi_c, Sub_c, Blu_c;
 void set_infor();
 
 
-
 void sendMessage(); 
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
 
+int NumNode=0;
 void receivedCallback(const uint32_t &from, const String &msg);
 void newConnectionCallback(uint32_t nodeId);
 void changedConnectionCallback();
@@ -69,13 +70,17 @@ HTTPClient http;                                                              //
 WiFiClient client;
 
 String apiKeyValue = "iotgateway2021";                                        //ket kết nối php
-String Protocol, Device, Stt;
-float Temp, Humi, Light;
+String Protocol, Device, Stt, Temp, Humi, Light ="";
 
 String WifiPreData[5];
 
+
+
+
 //post dữ liệu
-void readDataJson(DynamicJsonDocument json, int index);
+
+int platPostData = 0;
+void readDataJson(DynamicJsonDocument doc, int index);
 void DB_post();                                                               //ghi dữ liệu vào database
 //post connect
 
@@ -87,7 +92,7 @@ int skip = 0;
 String  payload,Pre_payload="";
 
 void GetCtr();                                                              // đọc Json điều khiển từ file control.json
-void CtrCMD(String payload);                                                //xử lý tín hiệu điều khiển
+void CtrCMD(String payload);                                                //xử l  ý tín hiệu điều khiển
 /*-------------------------------------------*/
 
 /*-------------Đọc dữ liệu uart---------*/
@@ -113,7 +118,7 @@ void ClearVal();
 void setup() {
   // put your setup code here, to run once:
   pinMode(Led_OnBoard, OUTPUT);
-  pinMode(D5,INPUT);//RX+
+  pinMode(D5,INPUT);//RX
   pinMode(D6,OUTPUT);//TX
   Serial.begin(115200);
   Serial_STM.begin(115200);
@@ -125,12 +130,18 @@ void setup() {
   Wifi_connect();
   set_infor();
   
+
+  
+  
 }
 
 void loop() {
+  userScheduler.execute(); 
   GetCtr();
   mesh.update();
   Read_Stm();
+  
+ 
 }
 
 void Wifi_connect()
@@ -170,12 +181,29 @@ void mesh_setup()
   mesh.onReceive(&receivedCallback);
   userScheduler.addTask(taskSendMessage);
   taskSendMessage.enable();
+  
+}
+
+void sendMessage()
+{
+  if(NumNode>0){
+    Serial.println("____________");
+    Serial.println("send request");
+    DynamicJsonDocument doc(1024);
+    String msg;
+    doc["cmd"] = "request";
+    serializeJson(doc, msg);
+    mesh.sendBroadcast( msg );
+    taskSendMessage.setInterval(TASK_SECOND * 20); 
+  }
+  
 }
 void receivedCallback(const uint32_t &from, const String &msg)
 {
   String json = msg.c_str();
   DynamicJsonDocument JsonWifi(1024);
   DeserializationError error = deserializeJson(JsonWifi, json);
+ 
   if (error)
   {
     Serial.print("deserializeJson() failed: ");
@@ -192,17 +220,17 @@ void receivedCallback(const uint32_t &from, const String &msg)
         break;
       }
     }
-  }
+  } 
 }
 void newConnectionCallback(uint32_t nodeId) {
 }
 
 void changedConnectionCallback() {
   Serial.println("---------------------------------");
-
     for (int i = 0; i < 5; i++){
       SimpleList<uint32_t> nodelist;
       nodelist = mesh.getNodeList();
+      NumNode = nodelist.size();
       SimpleList<uint32_t>::iterator node = nodelist.begin();
       while(node != nodelist.end()){
         if(Wifi_c.id[i] == *node){
@@ -215,17 +243,9 @@ void changedConnectionCallback() {
         node++;
       }
   }
-
-  Serial.println(" WifiID0: "+ String(Wifi_c.id[0]) +"---" + String(Wifi_c.cnt[0]));
-  Serial.println(" WifiID1: "+ String(Wifi_c.id[1]) +"---" + String(Wifi_c.cnt[1]));
-  Serial.println(" WifiID2: "+ String(Wifi_c.id[2]) +"---" + String(Wifi_c.cnt[2]));
-  Serial.println(" WifiID3: "+ String(Wifi_c.id[3]) +"---" + String(Wifi_c.cnt[3]));
-  Serial.println(" WifiID4: "+ String(Wifi_c.id[4]) +"---" + String(Wifi_c.cnt[4]));
-  
   postSttConncect();
 
   Serial.println("---------------------------------");
-  
 }
 
 void nodeTimeAdjustedCallback(int32_t offset) {   
@@ -237,9 +257,13 @@ void readDataJson(DynamicJsonDocument doc, int index){
     Device = String(name);
     const char* TT = doc["S"];
     Stt = String(TT);
-    Temp = doc["T"];
-    Humi =doc["H"];
-    Light = doc["L"];
+    float t = doc["T"];
+    Temp = String(t);
+    float h = doc["H"];
+    Humi = String(h);
+    float l = doc["L"];
+    Light = String(l);
+
     String x = Protocol + "," + Device + "," + String(Temp) + "," + String(Humi) + "," +String(Light) + "," + Stt;
     if(x!=WifiPreData[index]){
       DB_post();
@@ -249,8 +273,10 @@ void readDataJson(DynamicJsonDocument doc, int index){
       Serial.println("data not change");
       Serial.println("--------------------------------------------------------------------------------");
     }
-    
+     
 }
+
+
 
 void DB_post()
 {
@@ -266,14 +292,13 @@ void DB_post()
       http.addHeader("Content-Type", "application/x-www-form-urlencoded");                  //Specify content-type header
     
       int httpCode = http.POST(postData);   //Send the request
-      String payload = http.getString();    //Get the response payload
+     
       
       if (httpCode == 200) 
       { 
         Serial.print("Data uploaded successfully.   "); 
         Serial.println(httpCode); 
-        
-        
+        Serial.println("--------------------------------------------------------------------------------");
       }
       else 
       { 
@@ -285,7 +310,6 @@ void DB_post()
     }else{Serial.println("Connect Wifi Error!!!");}
   }
   else{Serial.println("Protocol Error!!!");}
-  Serial.println("--------------------------------------------------------------------------------");
   ClearVal();
 }
 
@@ -331,7 +355,7 @@ void CtrCMD(String payload)
     if(MCU=="ESP"){
       for (int i = 0; i < 5; i++)
       {
-        String gate = "Wifi"+ String(i+1);
+        String gate = "WIF"+ String(i+1);
         if(DVCtr == gate)
         {
           DynamicJsonDocument doc(1024);
@@ -340,6 +364,8 @@ void CtrCMD(String payload)
           String msg;
           serializeJson(doc, msg);
           mesh.sendSingle(Wifi_c.id[i],msg);
+          Serial.println(msg);
+          break;
         }
       }
     }    
@@ -354,10 +380,10 @@ void ClearVal()
 {
   Protocol = "";
   Device = "";
-  Temp = 0 ;
-  Humi = 0;
-  Light = 0 ;
-  Stt ="";
+  Temp = "" ;
+  Humi = "";
+  Light = "" ;
+  Stt = "";
 }
 void Blink_led()
 { 
@@ -372,7 +398,6 @@ void Read_Stm(){
     //data_rx = "connect,1,1,0,0,0,0,0";
     data_rx = Serial_STM.readStringUntil('\n');
     Serial.println(data_rx);
-    
     String x="";
     x = data_rx.substring(0,data_rx.indexOf(','));
     if(x=="connect"){
@@ -393,34 +418,23 @@ void Get_Data_Stm(String str) {
     
     str.remove(0,str.indexOf(',')+1);
     x = str.substring(0,str.indexOf(','));
-    Temp = val(x);
+    Temp = x;
     //Temp = roundf(x.toFloat());
 
     str.remove(0,str.indexOf(',')+1);
     x = str.substring(0,str.indexOf(','));
-    Humi = val(x);
+    Humi = x;
     
     str.remove(0,str.indexOf(',')+1);
     x = str.substring(0,str.indexOf(','));
-    Light = val(x);
+    Light = x;
     
     str.remove(0,str.indexOf(',')+1);
     x = str.substring(0,str.indexOf("\r")-4);
-    Stt = str;
-    
-    
+    Stt = str; 
     DB_post();
 }
-float val(String str){
-  float a;
-  if(str==""){
-    a = 0;
-  }
-  else{
-    a = str.toFloat();
-  }
-  return a;
-}
+
 
 
 void readConnectJson(String str){
@@ -439,6 +453,8 @@ void readConnectJson(String str){
     postSttConncect();
   
 }
+
+
 void postSttConncect(){
   for(int i=0;i<5;i++){
     if((Wifi_c.cnt[i]!=Wifi_c.Pre_cnt[i])||(Blu_c.cnt[i]!=Blu_c.Pre_cnt[i])||(Sub_c.cnt[i]!=Sub_c.Pre_cnt[i])){
@@ -467,11 +483,9 @@ void postSttConncect(){
           String payload = http.getString();    //Get the response payload
           //-------------------------------------------
           if (httpCode == 200) 
-          {  
-            Serial.println( postData); 
+          { 
+            Serial.println( postData);
             Serial.println("Status connect gate uploaded successfully."); 
-             Serial.println(payload); 
-             
             Serial.println("--------------------------------------------------------------------------------");
           }
           else 
@@ -514,6 +528,5 @@ void set_infor(){
     pinMode(Wifi_c.ledpin[i], OUTPUT);  
     digitalWrite(Wifi_c.ledpin[i], HIGH);
   }
-  
     
 }

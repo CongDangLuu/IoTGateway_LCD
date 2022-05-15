@@ -5,32 +5,39 @@
 #include <SPI.h>
 #include <CC1101_RF.h>
 #include <interrupt.h>
-#define led1 PB13
-#define led2 PB12
+
 #define ledonboard PC13
+
 
 HardwareSerial Blu_gate1(PA10, PA9);  // TX-PA10, RX-PA9
 HardwareSerial Blu_gate2(PB11, PB10); // TX-PB11, RX-PB9
 HardwareSerial Wif_gate(PA3, PA2); 
 
 CC1101 radio;
+//   CC1101       Blue/BlackPill
+//    CSN           PA4(SS1)
+//    CSK           PA5(SCK1)
+//    MISO          PA6(MISO1)
+//    MOSI          PA7(MOSI1)
+//    GDO0          PB0 - Optional see loop()
+//    GND           GND
+//    VCC           3.3V
+
 byte CC1101_rx[64];
 
 String Protocol, Device, Stt, Temp, Humi, Light = "";//biến lưu trữ dữ liệu
 
  typedef struct{
-  String PreTemp ="";
-  String PreHumi ="";
-  String PreLight ="";
-  String PreStt ="";
- } PreData;//Biến lưu dữ liệu trước đó.
+  String PreData= "";
+ } SaveData;//Biến lưu dữ liệu trước đó.
 
-  PreData PreBlu[2], PreSub[5];
+  SaveData DataBlu[2], DataSub[5];
 
   typedef struct{
     uint32_t id[5];
     int cnt[5]={0,0,0,0,0};
     int Pre_cnt[5]={0,0,0,0,0};
+    uint32_t ledpin[5];
   }Infor;
 
 Infor Wifi_c, Sub_c, Blu_c;
@@ -46,21 +53,22 @@ String data_control = "";// biến nhận chuỗi Json điều khiển từ esp.
 unsigned long timer;
 unsigned long timer_Blu1_Now, timer_Blu2_Now, CC1101_WaitTimer, CC1101_CheckACKTimer, SubTimer = 0;
 
-void getDataRx(String str, PreData gate);                                                                 // xử lý dữ liệu nhận được từ bluetooth và subghz
+String getDataRx(String str, String Predata);                                                                 // xử lý dữ liệu nhận được từ bluetooth và subghz
 
 
 void getSttJson();
 int getSttConnect(unsigned long timerNow);
 
 
-void CC1101_TxData(String data);                                                            //Gửi tín hiệu điều khiển cho CC1101
-void CC1101_RxData();                                                                       //nhận dữ liệu từ CC1101
+void CC1101_TxData(String data);  
+void CC1101_Request();                                                          
 
 void getCtr_Stm(String Ctr);                                                                //nhận tín hiệu điều khiển từ esp8266
 
 void ClearVal();
-float val(String str);
-int CheckData(PreData gate);
+String val(String str);
+//void CheckData(PreData gate);
+int flatCheckData=0;
 
 
 void setup() {
@@ -68,17 +76,15 @@ void setup() {
   Blu_gate1.begin(115200);
   Blu_gate2.begin(115200);
   Wif_gate.begin(115200); 
-  pinMode(led1, OUTPUT);
-  pinMode(led2,OUTPUT);
-  pinMode(ledonboard, OUTPUT);
-  digitalWrite(ledonboard, HIGH);
-  digitalWrite(led1, HIGH);
-  digitalWrite(led2, HIGH);
+
   set_infor();
+
   SPI.begin(); 
   radio.begin(433.2e6); 
   radio.setRXstate(); 
-  Wif_gate.println("Start............................");
+
+  delay(5000);
+  
   }
 
 void loop() {
@@ -96,13 +102,9 @@ void loop() {
   {
     timer_Blu1_Now =  millis();
     Protocol = "BLU1";
-    digitalWrite(led1, LOW);
-    data_BluRx = Blu_gate1.readStringUntil('\n');
-    Wif_gate.println(data_BluRx);
-    Blu_gate1.println("nhan xong");
-    getDataRx(data_BluRx,PreBlu[0]);
+    data_BluRx = Blu_gate1.readStringUntil('\n'); 
+    DataBlu[0].PreData = getDataRx(data_BluRx, DataBlu[0].PreData);
     String DeleteBuf = Blu_gate1.readString();
-    digitalWrite(led1, HIGH);
   }
   
   //Cổng Blu2
@@ -110,17 +112,15 @@ void loop() {
   {
     timer_Blu2_Now =  millis();
     Protocol = "BLU2";
-    digitalWrite(led2,LOW);
-    data_BluRx = Blu_gate2.readStringUntil('\n');
-  
-    getDataRx(data_BluRx, PreBlu[1]);
+    data_BluRx = Blu_gate2.readStringUntil('\n'); 
+    DataBlu[1].PreData = getDataRx(data_BluRx, DataBlu[1].PreData);
     String DeleteBuf = Blu_gate2.readString();
-    digitalWrite(led2,HIGH);
+    
   }
 
   //Cổng Sub_Ghz
-  if(millis()-SubTimer>5000){
-    CC1101_RxData();
+  if(millis()-SubTimer>=20000){
+    CC1101_Request();
     SubTimer = millis();
   }
   
@@ -131,7 +131,7 @@ void loop() {
 }
 
 /*-----------------------Chương trình con----------------------------------*/
-void getDataRx(String str, PreData gate)
+String getDataRx(String str, String Predata)
 {
   String x="";
 
@@ -162,18 +162,20 @@ void getDataRx(String str, PreData gate)
   }else{
     Stt = str;
   }
-
- if(CheckData(gate)){
-    String msgESP = Protocol + "," + Device + "," + Temp + "," + Humi + "," + Light + "," + Stt; 
+  String msgESP = Protocol + "," + Device + "," + Temp + "," + Humi + "," + Light + "," + Stt;
+  
+  if(msgESP != Predata){
     Wif_gate.println(msgESP);
- }
-  x = "";
+    Predata = msgESP;
+  }
+  return Predata;
   ClearVal();
+  
 }
 
 
 int getSttConnect(unsigned long timerNow){
-  if(millis()-timerNow > 20000){
+  if(millis()-timerNow > 60000){
     return 0;
   }
   else{return 1;}
@@ -186,18 +188,22 @@ void getSttJson(){
   for (int i = 0; i < 5; i++){
     if((Blu_c.cnt[i]!=Blu_c.Pre_cnt[i]) || (Sub_c.cnt[i]!=Sub_c.Pre_cnt[i])){     
       String CntESP = "connect," + String(Blu_c.cnt[0])
-                                + "," + String(Blu_c.cnt[1]) 
-                                + "," + String(Sub_c.cnt[0])
-                                + "," + String(Sub_c.cnt[1])
-                                + "," + String(Sub_c.cnt[2])
-                                + "," + String(Sub_c.cnt[3])
-                                + "," + String(Sub_c.cnt[4]);
+                           + "," + String(Blu_c.cnt[1]) 
+                           + "," + String(Sub_c.cnt[0])
+                           + "," + String(Sub_c.cnt[1])
+                           + "," + String(Sub_c.cnt[2])
+                           + "," + String(Sub_c.cnt[3])
+                           + "," + String(Sub_c.cnt[4]);
       Wif_gate.println(CntESP);
+
       for (int j = 0; j < 5; j++)
       {
         Blu_c.Pre_cnt[j] = Blu_c.cnt[j];
         Sub_c.Pre_cnt[j] = Sub_c.cnt[j];
+        digitalWrite(Sub_c.ledpin[i], !(Sub_c.cnt[i]));
       }
+      digitalWrite(Blu_c.ledpin[0], !(Blu_c.cnt[0]));
+      digitalWrite(Blu_c.ledpin[1], !(Blu_c.cnt[1]));
       
       break;
     }
@@ -214,14 +220,16 @@ void ClearVal()
   Light = "";
   data_BluRx="";
   data_SubRx="";
+  flatCheckData = 0;
 }
-float val(String str){
-  float a;
+
+String val(String str){
+  String a;
   if(str==""){
-    a = 0;
+    a = "0.00";
   }
   else{
-    a = str.toFloat();
+    a = str;
   }
   return a;
 }
@@ -236,7 +244,8 @@ void CC1101_TxData(String str_cmd){
   }
   delay(1);
 }
-void CC1101_RxData(){   
+
+void CC1101_Request(){   
   for(int i =0; i<5; i++){
     String respond = "request,"+String(Sub_c.id[i])+",";
     CC1101_TxData(respond);
@@ -247,12 +256,11 @@ void CC1101_RxData(){
       pkt_size = radio.getPacket(CC1101_rx);
       //gửi lại 3 lần
       if(millis()-CC1101_CheckACKTimer>300){
-        respond = "repond,"+String(Sub_c.id[i])+",null";
         CC1101_TxData(respond);
         CC1101_CheckACKTimer = millis();
       }
 
-      if(millis() - CC1101_WaitTimer> 2000){
+      if(millis() - CC1101_WaitTimer> 1500){
         Sub_c.cnt[i]=0;       
         break;
       }
@@ -271,15 +279,19 @@ void CC1101_RxData(){
       { 
         Sub_c.cnt[i]=1;
         Protocol = "SUB" + String(i+1); 
-        getDataRx(data_SubRx, PreSub[i]);
+        DataSub[i].PreData = getDataRx(data_SubRx, DataSub[i].PreData);
         ClearVal();
-      } 
+      }
+      while(millis() - CC1101_WaitTimer < 1500){      }
+
     }    
   }
 }
 
+
 void getCtr_Stm(String Ctr)
 {
+  //BLU1,1.
   String DVCtr,DVStt="";
   DVCtr = Ctr.substring(0,Ctr.indexOf(','));
   Ctr.remove(0,Ctr.indexOf(',')+1);
@@ -294,46 +306,71 @@ void getCtr_Stm(String Ctr)
   else{
     for (int i = 0; i < 5; i++)
     {
-      String gate = "SUB"+ String(i+1);
+      String gate = "Sub"+ String(i+1);
       if(DVCtr == gate){
         String control = "control,"+ String(Sub_c.id[i]) + "," + DVStt;
-        Wif_gate.println(control);
-        CC1101_TxData(control);
+        CC1101_TxData(control);//"control,<id>,<stt>"
       }
     }
-  }
-    int a = DVStt.toInt();
-    digitalWrite(ledonboard, !a);
-    
+    // cho node phan hoi
+    delay(500);
+     byte pkt_size = radio.getPacket(CC1101_rx);
+    if(pkt_size>0 && radio.crcok()){
+      
+      data_SubRx ="";
+      for(int j=0; j<pkt_size;j++){
+        data_SubRx += String(char(CC1101_rx[j]));
+      }
+      
+      String ID_node = data_SubRx.substring(0,data_SubRx.indexOf(','));
+      data_SubRx.remove(0,data_SubRx.indexOf(',')+1);
+      for(int i = 0 ; i<5; i++)
+      {
+        if (ID_node == String(Sub_c.id[i]))
+        { 
+          Sub_c.cnt[i]=1;
+          Protocol = "SUB" + String(i+1); 
+          DataSub[i].PreData = getDataRx(data_SubRx, DataSub[i].PreData);
+          ClearVal();
+          break;
+        }
+      }
+     
+    }    
+
+
+  }    
 }
 
-int CheckData(PreData gate){
-  if((gate.PreTemp!=Temp)||(gate.PreHumi!=Humi)||(gate.PreLight!=Light)||(gate.PreStt!=Stt)){
-    gate.PreTemp = Temp;
-    gate.PreHumi  = Humi;
-    gate.PreLight = Light;
-    gate.PreStt = Stt;
-    return 1;
-  }
-  else{
-    return 0;
-  }
-}
+
 
 void set_infor(){ 
-  Wifi_c.id[0] = 2486190338;
-  Wifi_c.id[1] = 2487404895;
-  Wifi_c.id[2] = 0;
-  Wifi_c.id[3] = 0;
-  Wifi_c.id[4] = 0;
- 
+
   Sub_c.id[0] = 27918;
   Sub_c.id[1] = 89184;
   Sub_c.id[2] = 99632;
   Sub_c.id[3] = 75729;
   Sub_c.id[4] = 42593;
     
-}
+  Sub_c.ledpin[0] = PB9;
+  Sub_c.ledpin[1] = PB8;
+  Sub_c.ledpin[2] = PB7;
+  Sub_c.ledpin[3] = PB6;
+  Sub_c.ledpin[4] = PB5;
+
+  Blu_c.ledpin[0] = PB4;
+  Blu_c.ledpin[1] = PB3;
+  
+  for (int i = 0; i < 5; i++){
+    pinMode(Sub_c.ledpin[i], OUTPUT);  
+    pinMode(Blu_c.ledpin[i], OUTPUT);
+    digitalWrite(Sub_c.ledpin[i], HIGH);
+    digitalWrite(Blu_c.ledpin[i], HIGH);
+  }
+  timer_Blu1_Now = timer_Blu2_Now = -60000;
 
   
+}
+
+
 
