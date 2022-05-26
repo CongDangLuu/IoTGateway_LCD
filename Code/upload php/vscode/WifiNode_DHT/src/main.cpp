@@ -1,5 +1,4 @@
 #include <Arduino.h>
-// Node 1
 #include "painlessMesh.h"
 
 #include <SPI.h>
@@ -9,8 +8,12 @@
 #include <DHT.h>
 #include <DHT_U.h>
 
+#include <BH1750.h>
+#include <Wire.h>
+
 float Temp, Humi, Light =0;
 String Stt;
+int cnt,flat =0;
 
 typedef struct{
     uint32_t id[5];
@@ -20,7 +23,7 @@ typedef struct{
 
   Infor Wifi_c, Sub_c ;
  
-  int index_ID = 3;// tu 0 den 4
+  int index_ID = 1;// tu 1 den 5
 
 
   uint32_t ID_sub;
@@ -29,7 +32,7 @@ typedef struct{
   void set_infor();
 
 //------------------DHT11--------------------
-#define DHTPIN D3    // Digital pin connected to the DHT sensor 
+#define DHTPIN D1   // Digital pin connected to the DHT sensor 
 #define DHTTYPE    DHT11     // DHT 11
 
 DHT_Unified dht(DHTPIN, DHTTYPE);
@@ -37,13 +40,24 @@ void DHT11_setup();
 void DHT11_data();
 //------------------DHT11--------------------
 
+
+//------------------BH1750--------------------
+#define sda_pin D3
+#define scl_pin D4
+
+BH1750 lightMeter(0x23);
+void BH1750_setup();
+void BH1750_val();
+//------------------BH1750--------------------
+
+
 //******************CC1101*******************
-#define Led_Sub D4
+#define Led_Sub 3
 
 String data_SubTx, data_SubRx= "";
 int Stt_SubLed = 0;
 
-CC1101 radio(D8,  D2);
+CC1101 radio(D8, D2);
 
 void CC1101_Node_RX();
 void CC1101_Node_TX();
@@ -51,7 +65,7 @@ void CC1101_Node_TX();
 //******************CC1101*******************
 
 //++++++++++++++++++ESP8266++++++++++++++++++
-#define Led_Wifi 2
+#define Led_Wifi D0
 int Stt_WifiLed = 0;
 
 //mesh network
@@ -62,6 +76,7 @@ int Stt_WifiLed = 0;
 
 painlessMesh  mesh;
 Scheduler userScheduler; 
+unsigned long t =0;
 
 void sendMessage(); 
 Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
@@ -83,17 +98,31 @@ void setup() {
   Serial.begin(115200);
   
   mesh_setup();
-  DHT11_setup();
+ DHT11_setup();
 
   SPI.begin(); // mandatory. CC1101_RF does not start SPI automatically
   radio.begin(433.2e6); // Freq=433.2Mhz. Do not forget the "e6"
   radio.setRXstate(); // Set the current state to RX : listening for RF packets
+  
+  BH1750_setup();
   set_infor();
+  delay(1000);
+  digitalWrite(Led_Sub,LOW);
+  
   
 }
 void loop() { 
   mesh.update();
   CC1101_Node_RX();
+  if(millis()-t>1000){
+    BH1750_val();
+    Serial.println("Light = " +String(Light));
+    t = millis();
+    if(flat==1){
+      cnt++;
+    }
+  }
+
   
 }
 
@@ -110,14 +139,15 @@ void set_infor(){
   Sub_c.id[3] = 75729;
   Sub_c.id[4] = 42593;   
 
-  ID_sub = Sub_c.id[index_ID];
-  ID_Wifi = Wifi_c.id[index_ID];
+  ID_sub = Sub_c.id[index_ID-1];
+  ID_Wifi = Wifi_c.id[index_ID-1];
   pinMode(Led_Sub, OUTPUT);
   pinMode(Led_Wifi, OUTPUT);
   digitalWrite(Led_Sub,HIGH);
   digitalWrite(Led_Wifi,HIGH);
 }
 
+//------------------DHT11--------------------
 void DHT11_setup(){
   dht.begin();
   sensor_t sensor;
@@ -144,8 +174,23 @@ void DHT11_data(){
     Humi = event.relative_humidity;
   }
 }
+//------------------DHT11--------------------
 
-
+//------------------BH1750--------------------
+void BH1750_setup(){
+  Wire.begin(sda_pin,scl_pin);
+  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+    Serial.println(F("BH1750 Advanced begin"));
+  } else {
+    Serial.println(F("Error initialising BH1750"));
+  }
+}
+void BH1750_val(){
+   if (lightMeter.measurementReady()) {
+    Light = lightMeter.readLightLevel();
+  }
+}
+//------------------BH1750--------------------
 
 //******************CC1101*******************
 
@@ -154,6 +199,9 @@ void CC1101_Node_RX(){
     byte CC1101_rx[64];
     byte pkt_size = radio.getPacket(CC1101_rx);
     if (pkt_size>0 && radio.crcok()) { // We have a valid packet with some data
+      Serial.println(cnt);
+      flat=0;
+      cnt =0;
         for(int i=0; i<pkt_size;i++)            {
             data_SubRx += String(char(CC1101_rx[i]));
         }
@@ -184,11 +232,12 @@ void CC1101_Node_RX(){
 
 void CC1101_Node_TX(){
     DHT11_data();
+    BH1750_val();
     Stt ="OFF";
     if(Stt_SubLed){
         Stt="ON";
     }
-     data_SubTx = String(ID_sub) + ",SubGHzNode"+String(index_ID+1)+",TEMP:"+String(Temp)+",HUMI:"+String(Humi)+",LIGHT:"+String(Light)+","+Stt;
+     data_SubTx = String(ID_sub) + ",SubGHzNode"+String(index_ID)+",TEMP:"+String(Temp)+",HUMI:"+String(Humi)+",LIGHT:"+String(Light)+","+Stt;
     //data_SubTx = "42593,SubGHzNode5,TEMP:23.43,HUMI:45.23,LIGHT:0.00,ON;
     int n = data_SubTx.length()+1;
     char arr_data[n];
@@ -201,7 +250,7 @@ void CC1101_Node_TX(){
 }
 //******************CC1101*******************
 
-
+//++++++++++++++++++ESP8266++++++++++++++++++
 void mesh_setup(){
   mesh.setDebugMsgTypes( ERROR | STARTUP );  
   mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
@@ -215,6 +264,7 @@ void mesh_setup(){
 void sendMessage()
 {
   DHT11_data();
+  BH1750_val();
   Serial.println("____________ send");
   
   // Serializing in JSON Format
@@ -224,9 +274,10 @@ void sendMessage()
     if(Stt_WifiLed){
       stt = "ON";
     }
-    doc["N"] = "DHTNode";
+    doc["N"] = "WifiNode" +String(index_ID);
     doc["T"] = String(Temp);
     doc["H"] = String(Humi);
+    doc["L"] = String(Light);
     doc["S"] = stt;
 
     serializeJson(doc, msg);
@@ -258,8 +309,9 @@ void receivedCallback( uint32_t from, String &msg ) {
       digitalWrite(Led_Wifi, !Stt_WifiLed);
     } 
   }
-  
+  flat =1;
 }
+//++++++++++++++++++ESP8266++++++++++++++++++
 
 
 

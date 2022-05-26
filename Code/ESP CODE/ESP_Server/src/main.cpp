@@ -18,16 +18,16 @@
 #define HOSTNAME "MeshNetwork" 
 
 //wifi
-// #define ssid "Hoang Yen"
-// #define pass "VNPT123@@2021"
-#define ssid "LCD"
-#define pass "244466666"
+#define ssid "Hoang Yen"
+#define pass "VNPT123@@2021"
+// #define ssid "LCD"
+// #define pass "244466666"
 
 //database
 
 
 const char* pathWriteData = "http://luanvanlogistic.highallnight.com/AppIoTgateway/WriteData.php";
-const char* pathWriteConnect = "http://luanvanlogistic.highallnight.com/AppIoTgateway/DVstt.php";
+const char* pathWriteConnect = "http://luanvanlogistic.highallnight.com/AppIoTgateway/DVconnect.php";
 const char* pathGetCtr = "http://luanvanlogistic.highallnight.com/AppIoTgateway/control/control.json";
 
 
@@ -62,6 +62,7 @@ void droppedConnectionCallback(uint32_t nodeId);
 void nodeTimeAdjustedCallback(int32_t offset);
 void mesh_setup();
 void Wifi_connect();
+void Wifi_reconnect();
 /*----------------------------------------*/
 
 
@@ -127,8 +128,9 @@ void setup() {
   Serial.println("----------------------Start here!-----------------------");
   
   mesh_setup();
-  Wifi_connect();
   set_infor();
+  Wifi_connect();
+  
   
 
   
@@ -136,17 +138,18 @@ void setup() {
 }
 
 void loop() {
-  userScheduler.execute(); 
   GetCtr();
+  userScheduler.execute(); 
   mesh.update();
   Read_Stm();
+
+  Wifi_reconnect();
   
- 
 }
 
 void Wifi_connect()
 {
-  delay(1000);
+  delay(200);
   WiFi.begin(ssid, pass);     //Connect to your WiFi router
   Serial.println("");
 
@@ -157,13 +160,17 @@ void Wifi_connect()
     Serial.print(".");
     Blink_led();
   }
-  digitalWrite(Led_OnBoard, LOW);
-
   Serial.println("");
   Serial.println("Wifi connected successfull!!!");
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(true);
   delay(1000);
+  Serial_STM.println("Start");
+  digitalWrite(Led_OnBoard, HIGH);
+}
+
+void Wifi_reconnect(){
+  if(WiFi.status() != WL_CONNECTED){
+    Wifi_connect();
+  }
 }
 
 void mesh_setup()
@@ -194,7 +201,7 @@ void sendMessage()
     doc["cmd"] = "request";
     serializeJson(doc, msg);
     mesh.sendBroadcast( msg );
-    taskSendMessage.setInterval(TASK_SECOND * 20); 
+    taskSendMessage.setInterval(TASK_SECOND * 60); 
   }
   
 }
@@ -346,7 +353,7 @@ void CtrCMD(String payload)
   else
   {
     //Protocol, Stt, MCU
-    const char* name = cmdJson["Pro"];
+    const char* name = cmdJson["Device"];
     DVCtr = String(name);
     const char* TT = cmdJson["Stt"];
     DVStt = String(TT);
@@ -355,7 +362,7 @@ void CtrCMD(String payload)
     if(MCU=="ESP"){
       for (int i = 0; i < 5; i++)
       {
-        String gate = "WIF"+ String(i+1);
+        String gate = "WIFI"+ String(i+1);
         if(DVCtr == gate)
         {
           DynamicJsonDocument doc(1024);
@@ -394,7 +401,7 @@ void Blink_led()
 
 void Read_Stm(){
   if(Serial_STM.available()){
-    //data_rx = "SUB,DHTNode,32.60,72.00,0.00,OFF";
+    //data_rx = "SUB1,SubNode1,32.60,72.00,0.00,OFF";
     //data_rx = "connect,1,1,0,0,0,0,0";
     data_rx = Serial_STM.readStringUntil('\n');
     Serial.println(data_rx);

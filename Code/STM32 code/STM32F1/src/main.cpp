@@ -47,12 +47,10 @@ String data_BluRx, data_SubRx = "";// biến nhận chuỗi dữ liệu từ cá
 
 String data_control = "";// biến nhận chuỗi Json điều khiển từ esp.
 
-// int Blu1_c, Blu2_c, Sub_c = 0; 
-// int PreBlu1_c, PreBlu2_c, PreSub_c = 0; 
 
-unsigned long timer;
-unsigned long timer_Blu1_Now, timer_Blu2_Now, CC1101_WaitTimer, CC1101_CheckACKTimer, SubTimer = 0;
+unsigned long timer_Blu1_Now, timer_Blu2_Now, CC1101_WaitTimer, CC1101_CheckACKTimer, SubTimer, BluTimer = 0;
 
+void Bluetooth_request();
 String getDataRx(String str, String Predata);                                                                 // xử lý dữ liệu nhận được từ bluetooth và subghz
 
 
@@ -70,33 +68,46 @@ String val(String str);
 //void CheckData(PreData gate);
 int flatCheckData=0;
 
+bool flat_start = 0;
 
 void setup() {
   // put your setup code here, to run once:
   Blu_gate1.begin(115200);
   Blu_gate2.begin(115200);
   Wif_gate.begin(115200); 
-
-  set_infor();
-
+  pinMode(ledonboard, OUTPUT);
+  digitalWrite(ledonboard,HIGH);
   SPI.begin(); 
   radio.begin(433.2e6); 
   radio.setRXstate(); 
+  while (flat_start==0)
+  {
+    if(Wif_gate.available()>0){
+      String flat = Wif_gate.readStringUntil('\n');
+      if(flat=="Start\r"){
+        flat_start = 1;
+        Blu_gate1.println(flat);
+        digitalWrite(ledonboard,LOW);
+      }
 
-  delay(5000);
+    }
+  }
   
+  set_infor();
   }
 
 void loop() {
   
-  //nhận lệnh điều khiển
+  // nhận lệnh điều khiển
   if(Wif_gate.available()>0)
   {
     data_control = Wif_gate.readStringUntil('\n'); //BLU1,1}
     getCtr_Stm(data_control);
+    Blu_gate1.println(data_control);
     String DeleteBuf = Wif_gate.readString();
   }
   
+  Bluetooth_request();
   // Cổng Blu1
   if(Blu_gate1.available()>0)
   {
@@ -119,18 +130,25 @@ void loop() {
   }
 
   //Cổng Sub_Ghz
-  if(millis()-SubTimer>=20000){
+  if(millis()-SubTimer>=60000){
     CC1101_Request();
     SubTimer = millis();
   }
   
-
   //thay đổi kết nối
   getSttJson();
   
 }
 
 /*-----------------------Chương trình con----------------------------------*/
+void Bluetooth_request(){
+  if(millis()-BluTimer>60000){
+    Blu_gate1.println("request");
+    Blu_gate2.println("request");
+    BluTimer = millis();
+  }
+}
+
 String getDataRx(String str, String Predata)
 {
   String x="";
@@ -175,7 +193,7 @@ String getDataRx(String str, String Predata)
 
 
 int getSttConnect(unsigned long timerNow){
-  if(millis()-timerNow > 60000){
+  if(millis()-timerNow > 70000){
     return 0;
   }
   else{return 1;}
@@ -255,12 +273,12 @@ void CC1101_Request(){
     while(!(pkt_size>0 && radio.crcok())){
       pkt_size = radio.getPacket(CC1101_rx);
       //gửi lại 3 lần
-      if(millis()-CC1101_CheckACKTimer>300){
+      if(millis()-CC1101_CheckACKTimer>200){
         CC1101_TxData(respond);
         CC1101_CheckACKTimer = millis();
       }
 
-      if(millis() - CC1101_WaitTimer> 1500){
+      if(millis() - CC1101_WaitTimer> 1000){
         Sub_c.cnt[i]=0;       
         break;
       }
@@ -282,7 +300,7 @@ void CC1101_Request(){
         DataSub[i].PreData = getDataRx(data_SubRx, DataSub[i].PreData);
         ClearVal();
       }
-      while(millis() - CC1101_WaitTimer < 1500){      }
+      while(millis() - CC1101_WaitTimer < 1000){      }
 
     }    
   }
@@ -306,7 +324,7 @@ void getCtr_Stm(String Ctr)
   else{
     for (int i = 0; i < 5; i++)
     {
-      String gate = "Sub"+ String(i+1);
+      String gate = "SUB"+ String(i+1);
       if(DVCtr == gate){
         String control = "control,"+ String(Sub_c.id[i]) + "," + DVStt;
         CC1101_TxData(control);//"control,<id>,<stt>"
@@ -345,7 +363,6 @@ void getCtr_Stm(String Ctr)
 
 
 void set_infor(){ 
-
   Sub_c.id[0] = 27918;
   Sub_c.id[1] = 89184;
   Sub_c.id[2] = 99632;
@@ -367,8 +384,10 @@ void set_infor(){
     digitalWrite(Sub_c.ledpin[i], HIGH);
     digitalWrite(Blu_c.ledpin[i], HIGH);
   }
-  timer_Blu1_Now = timer_Blu2_Now = -60000;
+  timer_Blu1_Now = timer_Blu2_Now = millis()-70000;
 
+  SubTimer =  millis()-30000;
+  BluTimer = millis()-20000;
   
 }
 
